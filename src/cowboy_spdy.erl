@@ -396,7 +396,7 @@ request_init(FakeSocket, Peer, OnRequest, OnResponse,
 	Version2 = cow_http:parse_version(Version),
 	Req = cowboy_req:new(FakeSocket, ?MODULE, Peer,
 		Method, Path2, Qs, Version2, Headers,
-		Host2, Port, <<>>, true, false, OnResponse),
+		Host2, Port, <<>>, true, false, OnResponse, 0),
 	case OnRequest of
 		undefined ->
 			execute(Req, Env, Middlewares);

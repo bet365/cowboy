@@ -16,7 +16,7 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/14]).
+-export([new/15]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -146,6 +146,7 @@
 	resp_compress = false :: boolean(),
 	resp_state = waiting :: locked | waiting | waiting_stream
 		| chunks | stream | done,
+	resp_compression_threshold=0 :: integer(),
 	resp_headers = [] :: cowboy:http_headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
 		| {non_neg_integer(), resp_body_fun()}
@@ -166,15 +167,16 @@
 	binary(), binary(), binary(),
 	cowboy:http_version(), cowboy:http_headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(), boolean(),
-	undefined | cowboy:onresponse_fun())
+	undefined | cowboy:onresponse_fun(), integer())
 	-> req().
 new(Socket, Transport, Peer, Method, Path, Query,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
-		Compress, OnResponse) ->
+		Compress, OnResponse, CompressionThreshold) ->
 	Req = #http_req{socket=Socket, transport=Transport, pid=self(), peer=Peer,
 		method=Method, path=Path, qs=Query, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
-		resp_compress=Compress, onresponse=OnResponse},
+		resp_compress=Compress, onresponse=OnResponse,
+		resp_compression_threshold=CompressionThreshold},
 	case CanKeepalive of
 		false ->
 			Req#http_req{connection=close};
@@ -1061,6 +1063,7 @@ g(resp_body, #http_req{resp_body=Ret}) -> Ret;
 g(resp_compress, #http_req{resp_compress=Ret}) -> Ret;
 g(resp_headers, #http_req{resp_headers=Ret}) -> Ret;
 g(resp_state, #http_req{resp_state=Ret}) -> Ret;
+g(resp_compression_threshold, #http_req{resp_compression_threshold=Ret}) -> Ret;
 g(socket, #http_req{socket=Ret}) -> Ret;
 g(transport, #http_req{transport=Ret}) -> Ret;
 g(version, #http_req{version=Ret}) -> Ret.
@@ -1088,8 +1091,10 @@ set([{port, Val}|Tail], Req) -> set(Tail, Req#http_req{port=Val});
 set([{qs, Val}|Tail], Req) -> set(Tail, Req#http_req{qs=Val});
 set([{qs_vals, Val}|Tail], Req) -> set(Tail, Req#http_req{qs_vals=Val});
 set([{resp_body, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_body=Val});
+set([{resp_compress, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_compress=Val});
 set([{resp_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_headers=Val});
 set([{resp_state, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_state=Val});
+set([{resp_compression_threshold, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_compression_threshold=Val});
 set([{socket, Val}|Tail], Req) -> set(Tail, Req#http_req{socket=Val});
 set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
 set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).

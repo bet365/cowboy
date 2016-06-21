@@ -42,6 +42,7 @@
 	transport :: module(),
 	middlewares :: [module()],
 	compress :: boolean(),
+	compression_threshold :: integer(),
 	env :: cowboy_middleware:env(),
 	onrequest :: undefined | cowboy:onrequest_fun(),
 	onresponse = undefined :: undefined | cowboy:onresponse_fun(),
@@ -77,6 +78,7 @@ get_value(Key, Opts, Default) ->
 -spec init(ranch:ref(), inet:socket(), module(), opts()) -> ok.
 init(Ref, Socket, Transport, Opts) ->
 	Compress = get_value(compress, Opts, false),
+	CompressionThreshold = get_value(compression_threshold, Opts, 0),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
 	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
@@ -90,7 +92,8 @@ init(Ref, Socket, Transport, Opts) ->
 	Timeout = get_value(timeout, Opts, 5000),
 	ok = ranch:accept_ack(Ref),
 	wait_request(<<>>, #state{socket=Socket, transport=Transport,
-		middlewares=Middlewares, compress=Compress, env=Env,
+		middlewares=Middlewares, compress=Compress,
+		compression_threshold=CompressionThreshold, env=Env,
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
@@ -403,13 +406,14 @@ parse_host(<< C, Rest/bits >>, E, Acc) ->
 
 request(Buffer, State=#state{socket=Socket, transport=Transport,
 		req_keepalive=ReqKeepalive, max_keepalive=MaxKeepalive,
-		compress=Compress, onresponse=OnResponse},
+		compress=Compress, onresponse=OnResponse,
+		compression_threshold=CompressionThreshold},
 		Method, Path, Query, Version, Headers, Host, Port) ->
 	case Transport:peername(Socket) of
 		{ok, Peer} ->
 			Req = cowboy_req:new(Socket, Transport, Peer, Method, Path,
 				Query, Version, Headers, Host, Port, Buffer,
-				ReqKeepalive < MaxKeepalive, Compress, OnResponse),
+				ReqKeepalive < MaxKeepalive, Compress, OnResponse, CompressionThreshold),
 			onrequest(Req, State);
 		{error, _} ->
 			%% Couldn't read the peer address; connection is gone.
@@ -494,10 +498,10 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 
 -spec error_terminate(cowboy:http_status(), #state{}) -> ok.
 error_terminate(Status, State=#state{socket=Socket, transport=Transport,
-		compress=Compress, onresponse=OnResponse}) ->
+		compress=Compress, onresponse=OnResponse, compression_threshold=CompressionThreshold}) ->
 	error_terminate(Status, cowboy_req:new(Socket, Transport,
 		undefined, <<"GET">>, <<>>, <<>>, 'HTTP/1.1', [], <<>>,
-		undefined, <<>>, false, Compress, OnResponse), State).
+		undefined, <<>>, false, Compress, OnResponse, CompressionThreshold), State).
 
 -spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{}) -> ok.
 error_terminate(Status, Req, State) ->
